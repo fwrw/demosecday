@@ -1,0 +1,15 @@
+# Arquivos e diretórios a serem ignorados pelo Docker
+script.py
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.git
+.gitignore
+README.md
+.env
+.venv
+venv/
+.pytest_cache/
+.coverage
