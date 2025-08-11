@@ -1,10 +1,21 @@
-# Versão simplificada do Dockerfile (caso a versão principal falhe)
+# Use uma imagem base Python com suporte a OpenCV
 FROM python:3.11-slim
 
-# Instalar apenas dependências essenciais
+# Instalar dependências do sistema necessárias para OpenCV
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
     libgomp1 \
+    libgtk-3-0 \
+    libgstreamer1.0-0 \
+    libgstreamer-plugins-base1.0-0 \
+    ffmpeg \
+    libavcodec59 \
+    libavformat59 \
+    libswscale6 \
+    libavutil57 \
     && rm -rf /var/lib/apt/lists/*
 
 # Definir diretório de trabalho

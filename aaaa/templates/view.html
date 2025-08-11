@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>dispositivos capturados</title>
+    <style>
+        body {
+            background: #18181b;
+            color: #e5e7eb;
+            font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2em;
+            margin-bottom: 24px;
+            color: #f43f5e;
+            letter-spacing: 2px;
+            text-shadow: 0 2px 8px #000;
+        }
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 24px;
+            padding: 24px;
+        }
+        .img-container {
+            background: linear-gradient(135deg, #23232b 60%, #111112 100%);
+            border-radius: 12px;
+            box-shadow: 0 4px 24px #000a, 0 1px 2px #f43f5e33;
+            border: 1px solid #2a2a2e;
+            overflow: hidden;
+            position: relative;
+            padding-bottom: 8px;
+            transition: box-shadow 0.2s;
+        }
+        .img-container:hover {
+            box-shadow: 0 8px 32px #f43f5e44, 0 1px 2px #f43f5e99;
+        }
+        .img-container img {
+            width: 100%;
+            height: 140px;
+            object-fit: cover;
+            display: block;
+            border-bottom: 1px solid #2a2a2e;
+        }
+        .device-info {
+            padding: 8px 12px 0 12px;
+            font-size: 0.95em;
+            color: #e5e7eb;
+            line-height: 1.5;
+        }
+        .device-info span {
+            display: block;
+            color: #a1a1aa;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <h1>dispositivos capturados</h1>
+    <div id="grid"></div>
+    <div id="modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(20,20,20,0.95);z-index:999;align-items:center;justify-content:center;">
+        <img id="modalImg" src="" style="max-width:80vw;max-height:80vh;border-radius:16px;box-shadow:0 8px 32px #f43f5e99;">
+        <span id="modalClose" style="position:absolute;top:32px;right:48px;font-size:2.5em;color:#f43f5e;cursor:pointer;font-weight:bold;text-shadow:0 2px 8px #000;">&times;</span>
+    </div>
+
+    <script>
+        let devices = [];  // ordem fixa
+
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+            if (window.modalUpdater) {
+                window.modalUpdater.stop();
+                window.modalUpdater = null;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('modalClose').onclick = closeModal;
+            document.getElementById('modal').onclick = (e) => {
+                if (e.target.id === 'modal') closeModal();
+            };
+        });
+
+        // Função de atualização com buffer
+        function createBufferedUpdater(element, getUrlFn, interval, bufferSize = 12) {
+            let buffer = new Array(bufferSize).fill(null).map(() => new Image());
+            let loaded = new Array(bufferSize).fill(false);
+            let currentIndex = 0;
+            let nextIndex = 1;
+            let running = true;
+
+            function preload(index) {
+                let url = getUrlFn();
+                loaded[index] = false;
+                buffer[index].onload = () => {
+                    loaded[index] = true;
+                };
+                buffer[index].src = url;
+            }
+
+            function tick() {
+                if (!running) return;
+                if (loaded[nextIndex]) {
+                    element.src = buffer[nextIndex].src;
+                    currentIndex = nextIndex;
+                    nextIndex = (nextIndex + 1) % bufferSize;
+                    preload((nextIndex + bufferSize - 1) % bufferSize); // carrega próximo da fila
+                }
+                setTimeout(tick, interval);
+            }
+
+            // Pré-carrega todo o buffer
+            for (let i = 0; i < bufferSize; i++) preload(i);
+            element.src = buffer[0].src;
+
+            tick();
+
+            return {
+                stop: () => { running = false; }
+            };
+        }
+
+        async function fetchImages() {
+            const res = await fetch('/images');
+            const data = await res.json();
+            const grid = document.getElementById('grid');
+
+            data.forEach(d => {
+                if (!devices.includes(d.device_id)) {
+                    devices.push(d.device_id);
+                }
+            });
+            devices = devices.filter(id => data.some(d => d.device_id === id));
+
+            grid.innerHTML = '';
+            devices.forEach(device_id => {
+                const deviceData = data.find(d => d.device_id === device_id);
+                if (deviceData) {
+                    const container = document.createElement('div');
+                    container.className = 'img-container';
+
+                    let img = document.createElement('img');
+                    if (deviceData.source === 'udp') {
+                        createBufferedUpdater(
+                            img,
+                            () => '/camera?dev=' + encodeURIComponent(device_id) + '&t=' + Date.now(),
+                            200,
+                            12
+                        );
+                    } else {
+                        img.src = deviceData.url + '?t=' + deviceData.timestamp;
+                    }
+
+                    img.style.cursor = 'pointer';
+                    img.onclick = () => {
+                        const modal = document.getElementById('modal');
+                        const modalImg = document.getElementById('modalImg');
+                        modal.style.display = 'flex';
+                        if (window.modalUpdater) {
+                            window.modalUpdater.stop();
+                            window.modalUpdater = null;
+                        }
+                        if (deviceData.source === 'udp') {
+                            window.modalUpdater = createBufferedUpdater(
+                                modalImg,
+                                () => '/camera?dev=' + encodeURIComponent(device_id) + '&t=' + Date.now(),
+                                200,
+                                12
+                            );
+                        } else {
+                            modalImg.src = deviceData.url + '?t=' + deviceData.timestamp;
+                        }
+                    };
+
+                    const info = document.createElement('div');
+                    info.className = 'device-info';
+                    info.innerHTML = `
+                        <span style="color:#f43f5e;font-weight:bold;font-size:1.1em;">${device_id}</span>
+                        <span><b>IP:</b> ${deviceData.ip}</span>
+                        <span><b>Tipo:</b> ${deviceData.source === 'udp' ? 'UDP (fluido)' : 'HTTP (polling)'}</span>
+                        <span><b>Timestamp:</b> ${new Date(deviceData.timestamp * 1000).toLocaleString()}</span>
+                        <span><b>Device:</b> ${deviceData.user_agent || 'N/A'}</span>
+                    `;
+
+                    container.appendChild(img);
+                    container.appendChild(info);
+                    grid.appendChild(container);
+                }
+            });
+        }
+
+        setInterval(fetchImages, 1000); // refresh lista de devices
+        fetchImages();
+    </script>
+</body>
+</html>

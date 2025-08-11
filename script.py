@@ -9,7 +9,7 @@ import os
 import tempfile
 
 udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-server_address = ('localhost', 5000) # TO-DO
+server_address = ('localhost', 5001) # TO-DO
 
 def get_cam():
     camera = cv.VideoCapture(0)
